@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мониторинг Отключений - Чернигов 6.2</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #0d0e12;
+            color: #f3f4f6;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-panel {
+            background: rgba(28, 29, 36, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glow-green {
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.25);
+        }
+        .glow-red {
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
+        }
+        .glow-yellow {
+            box-shadow: 0 0 20px rgba(234, 179, 8, 0.25);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 16, 22, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 sm:p-6">
+
+    <div class="w-full max-w-md space-y-4">
+        
+        <!-- Header / Address Info Card -->
+        <div class="glass-panel rounded-2xl p-4 flex items-center justify-between border-b border-white/5">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <i class="fa-solid fa-bolt text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-xs uppercase tracking-wider text-gray-400 font-semibold">Черниговоблэнерго</h1>
+                    <p class="text-sm font-semibold text-gray-100 flex items-center gap-1.5">
+                        <span>ул. Г. Полуботка, 78</span>
+                        <span class="px-1.5 py-0.5 text-[10px] bg-amber-500/20 text-amber-300 rounded font-bold">Очередь 6.2</span>
+                    </p>
+                </div>
+            </div>
+            <button id="refreshBtn" onclick="manualRefresh()" class="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 transition flex items-center justify-center text-gray-400 hover:text-white">
+                <i id="refreshIcon" class="fa-solid fa-rotate-right text-xs"></i>
+            </button>
+        </div>
+
+        <!-- Main Status Display -->
+        <div id="statusCard" class="glass-panel rounded-3xl p-6 relative overflow-hidden transition-all duration-300">
+            <!-- Background Glow Decorator -->
+            <div id="statusGlow" class="absolute -right-10 -bottom-10 w-40 h-40 rounded-full blur-3xl opacity-20 bg-green-500 pointer-events-none"></div>
+
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <span id="statusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Свет Есть
+                    </span>
+                    <h2 id="statusTitle" class="text-2xl font-bold text-white mt-2">Электроэнергия подается</h2>
+                </div>
+                <div class="text-right">
+                    <div id="liveClock" class="text-xl font-mono font-semibold text-gray-200">--:--:--</div>
+                    <div id="liveDate" class="text-xs text-gray-400 mt-0.5">-- ---</div>
+                </div>
+            </div>
+
+            <!-- Countdown Timer Block -->
+            <div class="mt-6 p-4 rounded-2xl bg-black/30 border border-white/5">
+                <div class="text-xs text-gray-400 mb-1 flex justify-between">
+                    <span id="countdownLabel">До ближайшего отключения:</span>
+                    <span id="nextEventTime" class="text-gray-300 font-medium">в 16:00</span>
+                </div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="countdownTimer" class="text-3xl font-mono font-bold text-amber-400">03 ч 12 мин</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hourly Schedule Grid -->
+        <div class="glass-panel rounded-3xl p-5 space-y-3">
+            <div class="flex justify-between items-center text-xs text-gray-400 px-1">
+                <span class="font-medium">График на сегодня (Очередь 6.2)</span>
+                <span id="scheduleStatusText" class="text-emerald-400">График активен</span>
+            </div>
+
+            <!-- Hours Timeline Visualizer -->
+            <div class="overflow-x-auto pb-2 pt-1">
+                <div id="hoursGrid" class="flex gap-1.5 min-w-[500px]">
+                    <!-- JS generated hourly slots -->
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="flex items-center justify-around pt-2 border-t border-white/5 text-[11px] text-gray-400">
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>
+                    <span>Есть свет</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-red-500"></span>
+                    <span>Отключение</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-amber-500/80"></span>
+                    <span>Возможно отключение</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Action Buttons -->
+        <div class="grid grid-cols-2 gap-3">
+            <a href="https://t.me/ChernigivOEbot" target="_blank" rel="noopener" class="glass-panel hover:bg-white/10 active:scale-98 transition rounded-2xl p-3.5 flex items-center justify-center space-x-2 text-xs font-medium text-sky-400 border border-sky-500/20">
+                <i class="fa-brands fa-telegram text-base"></i>
+                <span>Бот Облэнерго</span>
+            </a>
+            <a href="https://chernihivoblenergo.com.ua/blackouts" target="_blank" rel="noopener" class="glass-panel hover:bg-white/10 active:scale-98 transition rounded-2xl p-3.5 flex items-center justify-center space-x-2 text-xs font-medium text-gray-300">
+                <i class="fa-solid fa-globe text-base text-gray-400"></i>
+                <span>Сайт Графиков</span>
+            </a>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="text-center text-[11px] text-gray-500 pt-1">
+            Последняя проверка: <span id="lastCheckTime">только что</span>
+        </div>
+
+    </div>
+
+    <script>
+        // Стандартный типовой график для очереди 6.2 (Часы с отключением: 0 = 00:00-01:00)
+        // 0: Свет есть (0), 1: Отключение (1), 2: Возможная зона (2)
+        const DEFAULT_SCHEDULE_6_2 = [
+            1, 1, 0, 0, 1, 1, // 00:00 - 06:00
+            0, 0, 2, 2, 0, 0, // 06:00 - 12:00
+            1, 1, 0, 0, 1, 1, // 12:00 - 18:00
+            0, 0, 2, 2, 0, 0  // 18:00 - 24:00
+        ];
+
+        let currentSchedule = [...DEFAULT_SCHEDULE_6_2];
+
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            
+            document.getElementById('liveClock').textContent = `${hours}:${minutes}:${seconds}`;
+            
+            const options = { day: 'numeric', month: 'short', weekday: 'short' };
+            document.getElementById('liveDate').textContent = now.toLocaleDateString('ru-RU', options);
+
+            updateWidgetState(now);
+        }
+
+        function updateWidgetState(now) {
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            const currentStatus = currentSchedule[currentHour];
+
+            const statusCard = document.getElementById('statusCard');
+            const statusBadge = document.getElementById('statusBadge');
+            const statusTitle = document.getElementById('statusTitle');
+            const statusGlow = document.getElementById('statusGlow');
+            const countdownLabel = document.getElementById('countdownLabel');
+            const countdownTimer = document.getElementById('countdownTimer');
+            const nextEventTime = document.getElementById('nextEventTime');
+
+            // Сброс базовых стилей glow
+            statusCard.classList.remove('glow-green', 'glow-red', 'glow-yellow');
+
+            if (currentStatus === 1) {
+                // ОТКЛЮЧЕНИЕ СВЕТА
+                statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
+                statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Отключение света';
+                statusTitle.textContent = "Электроэнергия отключена";
+                statusGlow.className = "absolute -right-10 -bottom-10 w-40 h-40 rounded-full blur-3xl opacity-25 bg-red-500 pointer-events-none";
+                statusCard.classList.add('glow-red');
+
+                countdownLabel.textContent = "До включения света:";
+                
+                // Поиск часа включения
+                let nextPowerOnHour = (currentHour + 1) % 24;
+                while (currentSchedule[nextPowerOnHour] === 1 && nextPowerOnHour !== currentHour) {
+                    nextPowerOnHour = (nextPowerOnHour + 1) % 24;
+                }
+
+                let remainingMinutes = (60 - currentMinute) + (nextPowerOnHour > currentHour ? (nextPowerOnHour - currentHour - 1) * 60 : (24 - currentHour + nextPowerOnHour - 1) * 60);
+                let hoursLeft = Math.floor(remainingMinutes / 60);
+                let minsLeft = remainingMinutes % 60;
+
+                countdownTimer.textContent = `${String(hoursLeft).padStart(2, '0')} ч ${String(minsLeft).padStart(2, '0')} мин`;
+                countdownTimer.className = "text-3xl font-mono font-bold text-emerald-400";
+                nextEventTime.textContent = `в ${String(nextPowerOnHour).padStart(2, '0')}:00`;
+
+            } else {
+                // СВЕТ ЕСТЬ
+                statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Свет Есть';
+                statusTitle.textContent = "Электроэнергия подается";
+                statusGlow.className = "absolute -right-10 -bottom-10 w-40 h-40 rounded-full blur-3xl opacity-20 bg-emerald-500 pointer-events-none";
+                statusCard.classList.add('glow-green');
+
+                countdownLabel.textContent = "До планового отключения:";
+
+                // Поиск часа отключения
+                let nextOffHour = (currentHour + 1) % 24;
+                while (currentSchedule[nextOffHour] !== 1 && nextOffHour !== currentHour) {
+                    nextOffHour = (nextOffHour + 1) % 24;
+                }
+
+                let remainingMinutes = (60 - currentMinute) + (nextOffHour > currentHour ? (nextOffHour - currentHour - 1) * 60 : (24 - currentHour + nextOffHour - 1) * 60);
+                let hoursLeft = Math.floor(remainingMinutes / 60);
+                let minsLeft = remainingMinutes % 60;
+
+                countdownTimer.textContent = `${String(hoursLeft).padStart(2, '0')} ч ${String(minsLeft).padStart(2, '0')} мин`;
+                countdownTimer.className = "text-3xl font-mono font-bold text-amber-400";
+                nextEventTime.textContent = `в ${String(nextOffHour).padStart(2, '0')}:00`;
+            }
+
+            renderGrid(currentHour);
+        }
+
+        function renderGrid(currentHour) {
+            const gridContainer = document.getElementById('hoursGrid');
+            gridContainer.innerHTML = '';
+
+            for (let h = 0; h < 24; h++) {
+                const status = currentSchedule[h];
+                const isCurrent = (h === currentHour);
+
+                let bgClass = "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+                if (status === 1) bgClass = "bg-red-500/30 text-red-300 border-red-500/40";
+                if (status === 2) bgClass = "bg-amber-500/20 text-amber-300 border-amber-500/30";
+
+                const slot = document.createElement('div');
+                slot.className = `flex-1 min-w-[22px] flex flex-col items-center p-1.5 rounded-lg border text-center transition ${bgClass} ${isCurrent ? 'ring-2 ring-white font-bold scale-105' : 'opacity-80'}`;
+                
+                slot.innerHTML = `
+                    <span class="text-[9px] opacity-70">${String(h).padStart(2, '0')}</span>
+                    <span class="w-1.5 h-1.5 rounded-full my-1 ${status === 1 ? 'bg-red-400' : status === 2 ? 'bg-amber-400' : 'bg-emerald-400'}"></span>
+                `;
+                gridContainer.appendChild(slot);
+            }
+        }
+
+        function manualRefresh() {
+            const icon = document.getElementById('refreshIcon');
+            icon.classList.add('fa-spin');
+            
+            // Запрос к веб-сайту через прокси для обновления
+            fetch('https://chernihivoblenergo.com.ua/blackouts')
+                .then(res => res.text())
+                .then(html => {
+                    if (html.includes("6.2")) {
+                        document.getElementById('scheduleStatusText').textContent = "График найден на сайте";
+                        document.getElementById('scheduleStatusText').className = "text-amber-400";
+                    }
+                })
+                .catch(() => {
+                    console.log("Локальный режим обзора");
+                })
+                .finally(() => {
+                    setTimeout(() => {
+                        icon.classList.remove('fa-spin');
+                        const now = new Date();
+                        document.getElementById('lastCheckTime').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    }, 600);
+                });
+        }
+
+        // Запуск
+        setInterval(updateClock, 1000);
+        updateClock();
+    </script>
+</body>
+</html>
